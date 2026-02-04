@@ -209,3 +209,81 @@ Common issues:
 4. Look at the error messages - they usually tell you what's wrong
 
 Still stuck? Check the full README.md or create an issue!
+
+## Future Improvements
+
+### Slack Integration
+
+A future enhancement would allow sending PR status reports directly to Slack channels instead of (or in addition to) email.
+
+#### How It Would Work
+
+1. **Create a Slack App**
+   - Go to https://api.slack.com/apps and create a new app
+   - Choose "From scratch" and select your workspace
+   - Name it "PR Tracker Bot"
+
+2. **Configure Bot Permissions**
+   Add these OAuth scopes under "OAuth & Permissions":
+   - `chat:write` - Send messages to channels
+   - `chat:write.public` - Send messages to channels without joining
+   - `channels:read` - View basic channel info (optional)
+
+3. **Install to Workspace**
+   - Click "Install to Workspace" and authorize
+   - Copy the "Bot User OAuth Token" (starts with `xoxb-`)
+
+4. **Environment Variables**
+   ```
+   SLACK_BOT_TOKEN=xoxb-your-bot-token
+   SLACK_CHANNEL=#pr-reviews
+   NOTIFICATION_MODE=slack  # or "both" for email + slack
+   ```
+
+5. **Message Format**
+   The Slack message would use Block Kit for rich formatting:
+   ```
+   PR Status Report - Monday, February 3, 2026
+
+   6 PRs need more approvals (2 required)
+
+   api-member
+   ├─ ✅⭕ #123: Add user authentication
+   │     @alice • 3 days old
+   └─ ⭕⭕ #124: Fix login bug
+         @bob • 1 day old
+
+   api-patient-app
+   └─ ✅⭕ #456: Update dashboard
+         @charlie • 5 days old
+   ```
+
+6. **Implementation Outline**
+   ```javascript
+   // New dependency: @slack/web-api
+   const { WebClient } = require('@slack/web-api');
+   const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+
+   async function sendSlackMessage(prs) {
+     const blocks = formatPRsAsSlackBlocks(prs);
+     await slack.chat.postMessage({
+       channel: process.env.SLACK_CHANNEL,
+       blocks: blocks,
+       text: `${prs.length} PRs need approval` // Fallback
+     });
+   }
+   ```
+
+#### Benefits Over Email
+- **Real-time visibility** - Messages appear in team channels instantly
+- **Interactive** - Team members can react, thread discussions
+- **Mentions** - Can @mention PR authors or reviewers
+- **Mobile** - Better mobile experience via Slack app
+- **Searchable** - Easy to find past reports in Slack
+
+#### Additional Slack Features to Consider
+- **Daily digest thread** - Post updates as replies to keep channel clean
+- **Direct messages** - Send personal reminders to PR authors
+- **Slash commands** - `/pr-status` to get on-demand reports
+- **Button actions** - "Review Now" buttons linking directly to PRs
+- **Scheduled reminders** - Multiple daily notifications at configurable times
