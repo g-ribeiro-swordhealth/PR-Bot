@@ -1,0 +1,23 @@
+{
+  "name": "github-pr-email-tracker",
+  "version": "1.0.0",
+  "description": "Track GitHub PRs needing approval and send daily email notifications",
+  "main": "pr-tracker.js",
+  "scripts": {
+    "start": "node pr-tracker.js",
+    "test": "node pr-tracker.js"
+  },
+  "keywords": [
+    "github",
+    "email",
+    "pr",
+    "notifications"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "nodemailer": "^6.9.7",
+    "dotenv": "^16.3.1"
+  }
+}
