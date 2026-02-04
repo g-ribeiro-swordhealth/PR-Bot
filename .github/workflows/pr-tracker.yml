@@ -28,8 +28,8 @@ jobs:
       - name: Run PR tracker and send email
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-          GITHUB_ORG: ${{ secrets.GITHUB_ORG }}
-          GITHUB_REPOS: ${{ secrets.GITHUB_REPOS }}
+          GITHUB_ORG: ${{ secrets.GH_ORG }}
+          GITHUB_REPOS: ${{ secrets.GH_REPOS }}
           TEAM_MEMBERS: ${{ secrets.TEAM_MEMBERS }}
           REQUIRED_APPROVALS: ${{ secrets.REQUIRED_APPROVALS || '2' }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
