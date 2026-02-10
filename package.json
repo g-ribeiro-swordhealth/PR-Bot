@@ -1,15 +1,18 @@
 {
-  "name": "github-pr-email-tracker",
-  "version": "1.0.0",
-  "description": "Track GitHub PRs needing approval and send daily email notifications",
-  "main": "pr-tracker.js",
+  "name": "pr-bot",
+  "version": "2.0.0",
+  "description": "Slack PR notifier that posts and updates PR messages in real-time",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node pr-tracker.js",
-    "test": "node pr-tracker.js"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "start:email": "node pr-tracker.js",
+    "demo": "tsc && node dist/demo.js"
   },
   "keywords": [
     "github",
-    "email",
+    "slack",
     "pr",
     "notifications"
   ],
@@ -17,7 +20,14 @@
   "license": "MIT",
   "dependencies": {
     "@octokit/rest": "^20.0.2",
-    "nodemailer": "^6.9.7",
-    "dotenv": "^16.3.1"
+    "@slack/bolt": "^3.17.1",
+    "better-sqlite3": "^11.7.0",
+    "dotenv": "^16.3.1",
+    "nodemailer": "^6.9.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
   }
 }
