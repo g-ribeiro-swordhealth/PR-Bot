@@ -5,6 +5,7 @@ import { fetchPRData, isTeamMember } from './pr-service';
 import { postOrUpdatePR, postThreadReply } from '../slack/message-service';
 import { resolveSlackUser } from '../slack/user-mapping';
 import { logger } from '../utils/logger';
+import { findTeamsTrackingUserAndRepo, getFullTeamConfig } from '../db/team-config';
 
 function verifySignature(payload: string, signature: string | undefined, secret: string): boolean {
   if (!signature) return false;
@@ -74,60 +75,117 @@ async function handlePREvent(payload: WebhookPRPayload, config: AppConfig): Prom
   const pr = payload.pull_request;
   const owner = payload.repository.owner.login;
   const repo = payload.repository.name;
+  const author = pr.user.login;
 
-  logger.info(`PR event: ${payload.action} on ${owner}/${repo}#${pr.number}`);
+  logger.info(`PR event: ${payload.action} on ${owner}/${repo}#${pr.number} by ${author}`);
 
-  // Filter: only tracked repos
-  if (!config.githubRepos.includes(repo)) {
-    logger.debug(`Ignoring PR from untracked repo: ${repo}`);
+  // Find teams tracking this user and repo
+  const teamChannelIds = findTeamsTrackingUserAndRepo(author, repo);
+
+  if (teamChannelIds.length === 0) {
+    logger.debug(`No teams tracking ${author} in ${repo}`);
     return;
   }
 
-  // Filter: only team members (if configured)
-  if (!isTeamMember(pr.user.login, config.teamMembers)) {
-    logger.debug(`Ignoring PR from non-team member: ${pr.user.login}`);
-    return;
+  logger.info(`Found ${teamChannelIds.length} team(s) tracking this PR`, { teams: teamChannelIds });
+
+  // Post/update to each team's channel
+  for (const channelId of teamChannelIds) {
+    const teamConfig = getFullTeamConfig(channelId);
+    if (!teamConfig) continue;
+
+    // Check if team wants notifications for this PR action
+    const action = payload.action;
+    const isDraft = pr.draft;
+
+    let shouldNotify = false;
+    if (action === 'opened' && !isDraft && teamConfig.notifyOnOpen) shouldNotify = true;
+    if (action === 'ready_for_review' && teamConfig.notifyOnReady) shouldNotify = true;
+
+    // For other actions, always update the message if it exists
+    if (!shouldNotify && !['opened', 'ready_for_review'].includes(action)) {
+      shouldNotify = true; // Update existing messages for synchronize, reopened, etc.
+    }
+
+    if (!shouldNotify) {
+      logger.debug(`Team ${channelId} doesn't want notifications for ${action}`);
+      continue;
+    }
+
+    const prData = await fetchPRData(owner, repo, pr.number, teamConfig.requiredApprovals);
+    if (!prData) continue;
+
+    // Create a team-specific config for this channel
+    const teamSpecificConfig: AppConfig = {
+      ...config,
+      slackChannel: channelId,
+      slackChannelId: channelId, // For user mapping resolution
+      requiredApprovals: teamConfig.requiredApprovals,
+    };
+
+    await postOrUpdatePR(prData, teamSpecificConfig);
   }
-
-  const prData = await fetchPRData(owner, repo, pr.number, config.requiredApprovals);
-  if (!prData) return;
-
-  await postOrUpdatePR(prData, config);
 }
 
 async function handleReviewEvent(payload: WebhookPRPayload, config: AppConfig): Promise<void> {
   const pr = payload.pull_request;
   const owner = payload.repository.owner.login;
   const repo = payload.repository.name;
+  const author = pr.user.login;
   const reviewer = payload.review?.user.login || 'someone';
   const reviewState = payload.review?.state || '';
 
   logger.info(`Review event: ${payload.action} on ${owner}/${repo}#${pr.number} by ${reviewer}`);
 
-  if (!config.githubRepos.includes(repo)) return;
-  if (!isTeamMember(pr.user.login, config.teamMembers)) return;
-
-  // Update the main message with fresh approval count
-  const prData = await fetchPRData(owner, repo, pr.number, config.requiredApprovals);
-  if (!prData) return;
-  await postOrUpdatePR(prData, config);
-
-  // Post a thread reply about the review
-  const reviewerMention = resolveSlackUser(reviewer);
-  const timestamp = formatTimestamp();
-  let threadText: string;
-
-  if (reviewState === 'approved') {
-    threadText = `:white_check_mark: ${reviewerMention} *approved* this PR — ${timestamp}`;
-  } else if (reviewState === 'changes_requested') {
-    threadText = `:x: ${reviewerMention} *requested changes* — ${timestamp}`;
-  } else if (reviewState === 'dismissed') {
-    threadText = `:rewind: Review by ${reviewerMention} was *dismissed* — ${timestamp}`;
-  } else {
-    threadText = `:speech_balloon: ${reviewerMention} *left a review* — ${timestamp}`;
+  // Find teams tracking this PR
+  const teamChannelIds = findTeamsTrackingUserAndRepo(author, repo);
+  if (teamChannelIds.length === 0) {
+    logger.debug(`No teams tracking ${author} in ${repo}`);
+    return;
   }
 
-  await postThreadReply(pr.html_url, threadText);
+  // Post to each team's channel
+  for (const channelId of teamChannelIds) {
+    const teamConfig = getFullTeamConfig(channelId);
+    if (!teamConfig) continue;
+
+    // Check if team wants notifications for this review type
+    let shouldNotify = false;
+    if (reviewState === 'approved' && teamConfig.notifyOnApproved) shouldNotify = true;
+    if (reviewState === 'changes_requested' && teamConfig.notifyOnChangesRequested) shouldNotify = true;
+
+    // Update the main message with fresh approval count
+    const prData = await fetchPRData(owner, repo, pr.number, teamConfig.requiredApprovals);
+    if (!prData) continue;
+
+    const teamSpecificConfig: AppConfig = {
+      ...config,
+      slackChannel: channelId,
+      slackChannelId: channelId, // For user mapping resolution
+      requiredApprovals: teamConfig.requiredApprovals,
+    };
+
+    await postOrUpdatePR(prData, teamSpecificConfig);
+
+    // Post a thread reply about the review (only if team wants this notification)
+    if (shouldNotify) {
+      const reviewerMention = resolveSlackUser(reviewer, channelId);
+      const timestamp = formatTimestamp();
+      let threadText: string;
+
+      if (reviewState === 'approved') {
+        threadText = `:white_check_mark: ${reviewerMention} *approved* this PR — ${timestamp}`;
+      } else if (reviewState === 'changes_requested') {
+        threadText = `:x: ${reviewerMention} *requested changes* — ${timestamp}`;
+      } else if (reviewState === 'dismissed') {
+        threadText = `:rewind: Review by ${reviewerMention} was *dismissed* — ${timestamp}`;
+      } else {
+        threadText = `:speech_balloon: ${reviewerMention} *left a review* — ${timestamp}`;
+      }
+
+      await postThreadReply(pr.html_url, threadText);
+    }
+  }
 }
 
 async function handleCommentEvent(payload: any, config: AppConfig): Promise<void> {
@@ -137,8 +195,8 @@ async function handleCommentEvent(payload: any, config: AppConfig): Promise<void
 
   logger.info(`Comment event on ${repo}#${payload.issue.number} by ${commenter}`);
 
-  if (!config.githubRepos.includes(repo)) return;
-
+  // Comments are posted to all channels that have this PR
+  // Note: We don't have channelId here, so it will use global mapping fallback
   const commenterMention = resolveSlackUser(commenter);
   const timestamp = formatTimestamp();
   const threadText = `:speech_balloon: ${commenterMention} *commented* on this PR — ${timestamp}`;

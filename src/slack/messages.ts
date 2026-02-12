@@ -19,20 +19,22 @@ function daysOld(createdAt: string): number {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export function buildPRMessage(pr: PRData): { text: string; blocks: KnownBlock[] } {
+export function buildPRMessage(pr: PRData, channelId?: string): { text: string; blocks: KnownBlock[] } {
   const emoji = statusEmoji(pr.state, pr.isDraft, pr.approvals, pr.requiredApprovals);
-  const authorMention = resolveSlackUser(pr.author);
+  const authorMention = resolveSlackUser(pr.author, channelId);
   const age = daysOld(pr.createdAt);
 
   const stateLabel = pr.isDraft ? 'Draft' : pr.state === 'merged' ? 'Merged' : pr.state === 'closed' ? 'Closed' : 'Open';
-  const text = `${emoji} [${pr.repo}] #${pr.number}: ${pr.title} by ${pr.author}`;
+  // Include mention in fallback text so author gets notified
+  const text = `${emoji} [${pr.repo}] #${pr.number}: ${pr.title} by ${authorMention}`;
 
   const blocks: KnownBlock[] = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `${emoji} *<${pr.url}|#${pr.number}: ${pr.title}>*\n*Repo:* ${pr.owner}/${pr.repo} | *Author:* ${authorMention} | *Status:* ${stateLabel}`,
+        // Mention author at the beginning so they get notified on updates
+        text: `${emoji} *<${pr.url}|#${pr.number}: ${pr.title}>*\n${authorMention} | *Repo:* ${pr.owner}/${pr.repo} | *Status:* ${stateLabel}`,
       },
     },
     {

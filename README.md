@@ -1,289 +1,196 @@
-# Email Version Setup Guide
+# PR Bot - Slack PR Notification System
 
-Send PR status reports directly to your email inbox!
+> Real-time GitHub pull request notifications for Slack with **multi-team self-service configuration**
 
-## Quick Start
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-### Step 1: Get Your GitHub Token
-1. Go to: https://github.com/settings/tokens/new
-2. Name it "PR Tracker"
-3. Check: `repo` and `read:org`
-4. Generate and copy the token
+---
 
-### Step 2: Setup Email (Choose Your Provider)
+## 🚀 What is PR Bot?
 
-#### Option A: Gmail (Recommended for Testing)
+PR Bot is a Slack application that delivers intelligent, real-time pull request notifications to your team. Inspired by PullNotifier, it posts **one message per PR** and updates it in place as the PR progresses—no channel flooding!
 
-1. **Enable 2-Factor Authentication** on your Google account (required)
-2. **Create an App Password:**
-   - Go to: https://myaccount.google.com/apppasswords
-   - Select app: "Mail"
-   - Select device: "Other" (name it "PR Tracker")
-   - Click "Generate"
-   - Copy the 16-character password
+### ✨ Key Features
 
-3. **Your .env settings:**
-   ```
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USER=your-email@gmail.com
-   SMTP_PASS=your-16-char-app-password
-   EMAIL_TO=your-email@gmail.com
-   EMAIL_FROM="PR Tracker <your-email@gmail.com>"
-   ```
+- **📱 Update-in-Place Messages** - One message per PR that updates as the PR changes
+- **👥 Multi-Team Support** - Each channel configures their own tracked users and repos
+- **⚙️ Self-Service Configuration** - Teams manage settings through Slack's App Home tab (no code changes!)
+- **🎯 Smart Routing** - Notifications go to the right channels based on PR author and repo
+- **🔔 Customizable Notifications** - Each team chooses which PR events to receive
+- **🧵 Threaded Updates** - Reviews, comments, and approvals appear in threads
+- **🎨 Rich Formatting** - Beautiful Slack Block Kit messages with status indicators
+- **🔒 Secure** - Webhook signature verification and proper authentication
 
-#### Option B: Outlook/Hotmail
+---
 
-1. **Enable 2-Factor Authentication**
-2. **Create an App Password:**
-   - Go to: https://account.live.com/proofs/manage/additional
-   - Create a new app password
+## 🚦 Quick Start
 
-3. **Your .env settings:**
-   ```
-   SMTP_HOST=smtp-mail.outlook.com
-   SMTP_PORT=587
-   SMTP_USER=your-email@outlook.com
-   SMTP_PASS=your-app-password
-   EMAIL_TO=your-email@outlook.com
-   EMAIL_FROM="PR Tracker <your-email@outlook.com>"
-   ```
+### Prerequisites
+- Node.js 18+
+- A Slack workspace (admin access)
+- GitHub organization/repos
+- A server to host the bot (or ngrok for local testing)
 
-#### Option C: SendGrid (Best for Production)
-
-1. **Sign up:** https://sendgrid.com (free tier: 100 emails/day)
-2. **Create API Key:**
-   - Go to Settings → API Keys
-   - Create API Key with "Mail Send" permission
-   - Copy the key
-
-3. **Your .env settings:**
-   ```
-   SMTP_HOST=smtp.sendgrid.net
-   SMTP_PORT=587
-   SMTP_USER=apikey
-   SMTP_PASS=your-sendgrid-api-key
-   EMAIL_TO=your-email@example.com
-   EMAIL_FROM="PR Tracker <noreply@yourdomain.com>"
-   ```
-
-#### Option D: Company Email Server
-
-Ask your IT department for SMTP settings:
-```
-SMTP_HOST=smtp.yourcompany.com
-SMTP_PORT=587 (or 465 for SSL)
-SMTP_USER=your-work-email@company.com
-SMTP_PASS=your-password
-```
-
-### Step 3: Install and Configure
+### Installation
 
 ```bash
+# Clone the repository
+cd pr-bot
+
 # Install dependencies
 npm install
 
-# Create .env file
-cp env-email-example.txt .env
-
-# Edit .env with your actual values
-nano .env
+# Build TypeScript
+npm run build
 ```
 
-Your `.env` should look like:
-```
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
-GITHUB_ORG=your-company
-GITHUB_REPOS=repo1,repo2,repo3
-TEAM_MEMBERS=alice,bob,charlie
-REQUIRED_APPROVALS=2
+### Configuration
 
-EMAIL_TO=you@example.com
-EMAIL_FROM="PR Tracker <noreply@yourdomain.com>"
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
+1. **Create Slack App** - Follow [SLACK-SETUP.md](./SLACK-SETUP.md)
+2. **Configure `.env`**:
+
+```env
+# GitHub
+GITHUB_TOKEN=ghp_your_token_here
+GITHUB_ORG=YourOrganization
+GITHUB_WEBHOOK_SECRET=your_webhook_secret
+
+# Slack
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_SIGNING_SECRET=your_signing_secret
+
+# Server
+PORT=3000
+
+# Optional: User mappings for @mentions
+USER_MAPPINGS=github-user:U01234ABC,another-user:U56789DEF
 ```
 
-### Step 4: Test It
+3. **Set up GitHub webhooks** on your repositories
+4. **Start the server**:
 
 ```bash
 npm start
 ```
 
-Check your inbox! You should receive a beautifully formatted HTML email.
+### Team Setup
 
-### Step 5: Automate with GitHub Actions
+Each team manages their own configuration:
 
-1. Push code to your GitHub repo
-2. Go to Settings → Secrets → Actions
-3. Add these secrets:
-   - `GH_PAT` - your GitHub token
-   - `GITHUB_ORG` - your organization name
-   - `GITHUB_REPOS` - comma-separated repo names
-   - `TEAM_MEMBERS` - comma-separated usernames
-   - `EMAIL_TO` - your email address
-   - `EMAIL_FROM` - sender email
-   - `SMTP_HOST` - SMTP server
-   - `SMTP_PORT` - SMTP port (usually 587)
-   - `SMTP_USER` - SMTP username
-   - `SMTP_PASS` - SMTP password/app password
+1. Invite bot to channel: `/invite @PR Bot`
+2. Open App Home tab in Slack
+3. Add GitHub team members to track
+4. (Optional) Add specific repos to monitor
+5. Customize notification settings
 
-4. The workflow will run every weekday at 9 AM
+**That's it! No code changes needed.**
 
-## Email Features
+---
 
-✨ **What You'll Get:**
-- Beautiful HTML emails with color coding
-- Plain text fallback for email clients that don't support HTML
-- PRs grouped by repository
-- Visual approval indicators (✅⭕)
-- Age of each PR with color coding (red for old, yellow for medium, green for new)
-- Clickable links to PRs
-- Clean summary when all PRs are approved
+## 📋 Team Configuration Example
 
-## Troubleshooting
-
-### "Authentication failed"
-- **Gmail/Outlook:** Make sure you're using an App Password, not your regular password
-- Enable 2FA first, then create App Password
-- Check that the app password has no spaces
-
-### "Connection timeout"
-- Check your SMTP_HOST and SMTP_PORT
-- Try port 465 if 587 doesn't work
-- Some networks block SMTP - try from a different network
-
-### "No email received"
-- Check spam folder
-- Verify EMAIL_TO is correct
-- Check GitHub Actions logs for errors
-- Try sending a test email with: `npm start`
-
-### "Too many login attempts"
-- Gmail/Outlook may temporarily block logins if you test too frequently
-- Wait 15 minutes and try again
-- Consider using SendGrid for production
-
-## Advanced Configuration
-
-### Send to Multiple Recipients
-
+### Frontend Team (`#frontend-prs`)
 ```
-EMAIL_TO=person1@example.com,person2@example.com,person3@example.com
+👥 Team Members:
+   • alice-frontend
+   • bob-ui-dev
+   • carol-designer
+
+📦 Repos:
+   • ui-admin
+   • ui-patient-app
+   • ui-components
+
+⚙️ Settings:
+   Required Approvals: 2
+   Notify on: Open, Ready, Changes Requested, Approved
 ```
 
-### Change Email Schedule
-
-Edit the cron in your GitHub Actions workflow:
-- `0 9 * * 1-5` - 9 AM weekdays (default)
-- `0 9,15 * * 1-5` - 9 AM and 3 PM weekdays
-- `0 9 * * *` - 9 AM every day
-- `0 */6 * * *` - Every 6 hours
-
-### Custom Email Subject
-
-Edit `pr-tracker-email.js` around line 240 to customize the subject line.
-
-## Security Notes
-
-⚠️ **Never commit your .env file to GitHub!**
-
-Make sure your `.gitignore` includes:
+### Backend Team (`#backend-prs`)
 ```
-node_modules/
-.env
+👥 Team Members:
+   • dan-backend
+   • eve-api-dev
+   • frank-db-admin
+
+📦 Repos:
+   • api-member
+   • api-patient-app
+   • api-eligibility
+
+⚙️ Settings:
+   Required Approvals: 2
+   Notify on: Open, Changes Requested
 ```
 
-✅ **Use GitHub Secrets** for automation - they're encrypted and secure.
+---
 
-✅ **Use App Passwords** instead of your main account password.
+## 🎛️ Features
 
-## Need Help?
+### Multi-Team Support
+- Unlimited teams/channels with independent configuration
+- Track specific repos or all repos in the org
+- Different approval thresholds and notification preferences per team
 
-Common issues:
-1. Make sure 2FA is enabled before creating app passwords
-2. Use the correct SMTP host for your provider
-3. Check that all environment variables are set
-4. Look at the error messages - they usually tell you what's wrong
+### App Home Configuration
+- Visual interface - no JSON or YAML editing
+- Simple modals for team management
+- Real-time updates
 
-Still stuck? Check the full README.md or create an issue!
+### Smart Notifications
+- Intelligent routing - PRs appear in channels tracking the author
+- Event filtering - choose which PR events to receive
+- Draft handling - automatically skip draft PRs
+- Update-in-place - one message per PR, always current
 
-## Future Improvements
+---
 
-### Slack Integration
+## 📊 Database Schema
 
-A future enhancement would allow sending PR status reports directly to Slack channels instead of (or in addition to) email.
+PR Bot uses SQLite to store:
 
-#### How It Would Work
+- **team_configs** - Channel-specific settings
+- **team_members** - GitHub users tracked per channel
+- **team_repos** - Repositories tracked per channel (optional)
+- **pr_messages** - Message state for update-in-place functionality
+- **user_mappings** - GitHub username → Slack user ID mappings
 
-1. **Create a Slack App**
-   - Go to https://api.slack.com/apps and create a new app
-   - Choose "From scratch" and select your workspace
-   - Name it "PR Tracker Bot"
+---
 
-2. **Configure Bot Permissions**
-   Add these OAuth scopes under "OAuth & Permissions":
-   - `chat:write` - Send messages to channels
-   - `chat:write.public` - Send messages to channels without joining
-   - `channels:read` - View basic channel info (optional)
+## 🔧 Configuration Reference
 
-3. **Install to Workspace**
-   - Click "Install to Workspace" and authorize
-   - Copy the "Bot User OAuth Token" (starts with `xoxb-`)
+### Environment Variables
 
-4. **Environment Variables**
-   ```
-   SLACK_BOT_TOKEN=xoxb-your-bot-token
-   SLACK_CHANNEL=#pr-reviews
-   NOTIFICATION_MODE=slack  # or "both" for email + slack
-   ```
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GITHUB_TOKEN` | Yes | GitHub personal access token (repo scope) |
+| `GITHUB_ORG` | Yes | GitHub organization name |
+| `GITHUB_WEBHOOK_SECRET` | Yes | Secret for webhook signature verification |
+| `SLACK_BOT_TOKEN` | Yes | Slack bot token (xoxb-...) |
+| `SLACK_SIGNING_SECRET` | Yes | Slack signing secret |
+| `PORT` | No | Server port (default: 3000) |
+| `USER_MAPPINGS` | No | GitHub→Slack user mappings (user1:U123,user2:U456) |
 
-5. **Message Format**
-   The Slack message would use Block Kit for rich formatting:
-   ```
-   PR Status Report - Monday, February 3, 2026
+### Slack Permissions Required
 
-   6 PRs need more approvals (2 required)
+- `chat:write` - Post messages to channels
+- `users:read` - Read user info for @mentions
+- `commands` - Slash command support
 
-   api-member
-   ├─ ✅⭕ #123: Add user authentication
-   │     @alice • 3 days old
-   └─ ⭕⭕ #124: Fix login bug
-         @bob • 1 day old
+---
 
-   api-patient-app
-   └─ ✅⭕ #456: Update dashboard
-         @charlie • 5 days old
-   ```
+## 🚀 Deployment
 
-6. **Implementation Outline**
-   ```javascript
-   // New dependency: @slack/web-api
-   const { WebClient } = require('@slack/web-api');
-   const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+See [SLACK-SETUP.md](./SLACK-SETUP.md) for detailed deployment instructions.
 
-   async function sendSlackMessage(prs) {
-     const blocks = formatPRsAsSlackBlocks(prs);
-     await slack.chat.postMessage({
-       channel: process.env.SLACK_CHANNEL,
-       blocks: blocks,
-       text: `${prs.length} PRs need approval` // Fallback
-     });
-   }
-   ```
+---
 
-#### Benefits Over Email
-- **Real-time visibility** - Messages appear in team channels instantly
-- **Interactive** - Team members can react, thread discussions
-- **Mentions** - Can @mention PR authors or reviewers
-- **Mobile** - Better mobile experience via Slack app
-- **Searchable** - Easy to find past reports in Slack
+## 🆘 Support
 
-#### Additional Slack Features to Consider
-- **Daily digest thread** - Post updates as replies to keep channel clean
-- **Direct messages** - Send personal reminders to PR authors
-- **Slash commands** - `/pr-status` to get on-demand reports
-- **Button actions** - "Review Now" buttons linking directly to PRs
-- **Scheduled reminders** - Multiple daily notifications at configurable times
+- **Documentation**: See [SLACK-SETUP.md](./SLACK-SETUP.md) for detailed setup
+- **Issues**: Report bugs or request features via GitHub Issues
+
+---
+
+**Made with ❤️ for developers who love clean Slack channels**

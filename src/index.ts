@@ -6,6 +6,7 @@ import { initGitHubClient } from './github/client';
 import { createWebhookHandler } from './github/webhook-handler';
 import { initSlackClient } from './slack/message-service';
 import { createPRStatusHandler } from './slack/commands';
+import { registerAppHomeHandlers } from './slack/app-home-handlers';
 import { logger } from './utils/logger';
 
 async function main() {
@@ -55,6 +56,10 @@ async function main() {
 
   // Init Slack client for message-service
   initSlackClient(app.client);
+
+  // Register App Home handlers (configuration UI)
+  registerAppHomeHandlers(app);
+  logger.info('App Home handlers registered');
 
   // Register slash command
   app.command('/pr-status', createPRStatusHandler(config));

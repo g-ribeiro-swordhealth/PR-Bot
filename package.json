@@ -6,9 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc && node dist/index.js",
-    "start:email": "node pr-tracker.js",
-    "demo": "tsc && node dist/demo.js"
+    "dev": "tsc && node dist/index.js"
   },
   "keywords": [
     "github",
@@ -22,8 +20,7 @@
     "@octokit/rest": "^20.0.2",
     "@slack/bolt": "^3.17.1",
     "better-sqlite3": "^11.7.0",
-    "dotenv": "^16.3.1",
-    "nodemailer": "^6.9.7"
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.8",

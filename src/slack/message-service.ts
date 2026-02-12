@@ -12,7 +12,7 @@ export function initSlackClient(client: WebClient): void {
 }
 
 export async function postOrUpdatePR(prData: PRData, config: AppConfig): Promise<void> {
-  const { text, blocks } = buildPRMessage(prData);
+  const { text, blocks } = buildPRMessage(prData, config.slackChannelId);
   const existing = getPRMessage(prData.url);
 
   if (existing) {
