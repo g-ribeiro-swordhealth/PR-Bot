@@ -14,8 +14,54 @@ import {
   removeTeamMember,
   addTeamRepo,
   removeTeamRepo,
+  getUserSelectedChannel,
+  setUserSelectedChannel,
 } from '../db/team-config';
 import { logger } from '../utils/logger';
+
+/**
+ * Fetch list of channels where bot is a member
+ */
+async function getBotChannels(client: any): Promise<Array<{ id: string; name: string }>> {
+  try {
+    const result = await client.conversations.list({
+      types: 'public_channel,private_channel',
+      exclude_archived: true,
+      limit: 200,
+    });
+
+    if (!result.ok || !result.channels) {
+      return [];
+    }
+
+    // Filter to only channels where bot is a member
+    const botChannels = result.channels
+      .filter((ch: any) => ch.is_member)
+      .map((ch: any) => ({
+        id: ch.id,
+        name: ch.name,
+      }));
+
+    return botChannels;
+  } catch (error: any) {
+    logger.error('Error fetching bot channels', { error: error.message });
+    return [];
+  }
+}
+
+/**
+ * Helper to refresh App Home for a user with a specific channel
+ */
+async function refreshAppHome(client: any, userId: string, channelId: string): Promise<void> {
+  const availableChannels = await getBotChannels(client);
+  const config = getFullTeamConfig(channelId);
+  const view = buildAppHomeView(channelId, config, availableChannels);
+
+  await client.views.publish({
+    user_id: userId,
+    view,
+  });
+}
 
 /**
  * Register all App Home handlers
@@ -26,22 +72,62 @@ export function registerAppHomeHandlers(app: App): void {
     try {
       const userId = event.user;
 
-      // Get the user's current channel context
-      // For simplicity, we'll use the user's DM channel as the channel_id
-      // In a real app, you might want to store this differently
-      const channelId = event.channel || userId;
+      // Fetch channels where bot is a member
+      const availableChannels = await getBotChannels(client);
+
+      // Get user's last selected channel or use first available
+      let channelId = getUserSelectedChannel(userId);
+
+      if (!channelId && availableChannels.length > 0) {
+        // Default to first available channel
+        channelId = availableChannels[0].id;
+        setUserSelectedChannel(userId, channelId);
+      } else if (!channelId) {
+        // No channels available - use userId as fallback (legacy behavior)
+        channelId = userId;
+      }
 
       const config = getFullTeamConfig(channelId);
-      const view = buildAppHomeView(channelId, config);
+      const view = buildAppHomeView(channelId, config, availableChannels);
 
       await client.views.publish({
         user_id: userId,
         view,
       });
 
-      logger.info('App Home opened', { userId, channelId });
+      logger.info('App Home opened', { userId, channelId, availableChannels: availableChannels.length });
     } catch (error: any) {
       logger.error('Error publishing App Home', { error: error.message });
+    }
+  });
+
+  // Handle channel selection
+  app.action('select_channel', async ({ ack, body, client, action }) => {
+    await ack();
+
+    try {
+      const userId = (body as any).user.id;
+      const selectedChannelId = (action as any).selected_option.value;
+
+      // Save user's selected channel
+      setUserSelectedChannel(userId, selectedChannelId);
+
+      // Fetch available channels
+      const availableChannels = await getBotChannels(client);
+
+      // Get config for selected channel
+      const config = getFullTeamConfig(selectedChannelId);
+      const view = buildAppHomeView(selectedChannelId, config, availableChannels);
+
+      // Update App Home
+      await client.views.publish({
+        user_id: userId,
+        view,
+      });
+
+      logger.info('Channel selected in App Home', { userId, channelId: selectedChannelId });
+    } catch (error: any) {
+      logger.error('Error handling channel selection', { error: error.message });
     }
   });
 
@@ -204,11 +290,7 @@ export function registerAppHomeHandlers(app: App): void {
       logger.info('Team members added', { channelId, entries, addedBy: userId });
 
       // Refresh App Home
-      const config = getFullTeamConfig(channelId);
-      await client.views.publish({
-        user_id: userId,
-        view: buildAppHomeView(channelId, config),
-      });
+      await refreshAppHome(client, userId, channelId);
     } catch (error: any) {
       logger.error('Error adding team members', { error: error.message });
     }
@@ -233,11 +315,7 @@ export function registerAppHomeHandlers(app: App): void {
       logger.info('Team members removed', { channelId, usernames });
 
       // Refresh App Home
-      const config = getFullTeamConfig(channelId);
-      await client.views.publish({
-        user_id: userId,
-        view: buildAppHomeView(channelId, config),
-      });
+      await refreshAppHome(client, userId, channelId);
     } catch (error: any) {
       logger.error('Error removing team members', { error: error.message });
     }
@@ -269,11 +347,7 @@ export function registerAppHomeHandlers(app: App): void {
       logger.info('Team repos added', { channelId, repos });
 
       // Refresh App Home
-      const config = getFullTeamConfig(channelId);
-      await client.views.publish({
-        user_id: userId,
-        view: buildAppHomeView(channelId, config),
-      });
+      await refreshAppHome(client, userId, channelId);
     } catch (error: any) {
       logger.error('Error adding team repos', { error: error.message });
     }
@@ -298,11 +372,7 @@ export function registerAppHomeHandlers(app: App): void {
       logger.info('Team repos removed', { channelId, repos });
 
       // Refresh App Home
-      const config = getFullTeamConfig(channelId);
-      await client.views.publish({
-        user_id: userId,
-        view: buildAppHomeView(channelId, config),
-      });
+      await refreshAppHome(client, userId, channelId);
     } catch (error: any) {
       logger.error('Error removing team repos', { error: error.message });
     }
@@ -324,6 +394,7 @@ export function registerAppHomeHandlers(app: App): void {
       const notifyOnChanges = (values.notify_changes.notify_changes_check.selected_options || []).length > 0;
       const notifyOnApproved = (values.notify_approved.notify_approved_check.selected_options || []).length > 0;
       const notifyOnMerged = (values.notify_merged.notify_merged_check.selected_options || []).length > 0;
+      const excludeBotComments = (values.exclude_bot_comments.exclude_bot_comments_check.selected_options || []).length > 0;
 
       upsertTeamConfig({
         channel_id: channelId,
@@ -333,16 +404,13 @@ export function registerAppHomeHandlers(app: App): void {
         notify_on_changes_requested: notifyOnChanges ? 1 : 0,
         notify_on_approved: notifyOnApproved ? 1 : 0,
         notify_on_merged: notifyOnMerged ? 1 : 0,
+        exclude_bot_comments: excludeBotComments ? 1 : 0,
       });
 
       logger.info('Team settings updated', { channelId, requiredApprovals });
 
       // Refresh App Home
-      const config = getFullTeamConfig(channelId);
-      await client.views.publish({
-        user_id: userId,
-        view: buildAppHomeView(channelId, config),
-      });
+      await refreshAppHome(client, userId, channelId);
     } catch (error: any) {
       logger.error('Error updating settings', { error: error.message });
     }

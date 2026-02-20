@@ -1,10 +1,19 @@
 import { KnownBlock, Block, View } from '@slack/bolt';
 import { TeamConfig } from '../types';
 
+interface ChannelInfo {
+  id: string;
+  name: string;
+}
+
 /**
  * Build the App Home view for team configuration
  */
-export function buildAppHomeView(channelId: string, config: TeamConfig | null): View {
+export function buildAppHomeView(
+  channelId: string,
+  config: TeamConfig | null,
+  availableChannels: ChannelInfo[] = []
+): View {
   const blocks: (KnownBlock | Block)[] = [];
 
   // Header
@@ -16,20 +25,77 @@ export function buildAppHomeView(channelId: string, config: TeamConfig | null): 
         text: '⚙️ PR Bot Configuration',
         emoji: true,
       },
-    },
-    {
-      type: 'context',
-      elements: [
-        {
-          type: 'mrkdwn',
-          text: `Configure notifications for <#${channelId}>`,
-        },
-      ],
-    },
-    {
-      type: 'divider',
     }
   );
+
+  // Channel Selector (if multiple channels available)
+  if (availableChannels.length > 0) {
+    const currentChannel = availableChannels.find(ch => ch.id === channelId);
+    const channelOptions = availableChannels.map(ch => ({
+      text: {
+        type: 'plain_text' as const,
+        text: `#${ch.name}`,
+        emoji: true,
+      },
+      value: ch.id,
+    }));
+
+    blocks.push(
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*📺 Configuring Channel:*\n${currentChannel ? `<#${channelId}>` : channelId}`,
+        },
+        accessory: {
+          type: 'static_select',
+          placeholder: {
+            type: 'plain_text',
+            text: 'Select a channel',
+            emoji: true,
+          },
+          options: channelOptions,
+          initial_option: currentChannel ? {
+            text: {
+              type: 'plain_text' as const,
+              text: `#${currentChannel.name}`,
+              emoji: true,
+            },
+            value: currentChannel.id,
+          } : undefined,
+          action_id: 'select_channel',
+        },
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: '_Select a channel to configure its PR notifications_',
+          },
+        ],
+      },
+      {
+        type: 'divider',
+      }
+    );
+  } else {
+    // No channels available - show helper text
+    blocks.push(
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `Configure notifications for <#${channelId}>`,
+          },
+        ],
+      },
+      {
+        type: 'divider',
+      }
+    );
+  }
 
   // If no config exists, show setup message
   if (!config) {
@@ -199,7 +265,7 @@ export function buildAppHomeView(channelId: string, config: TeamConfig | null): 
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Required Approvals:* ${config.requiredApprovals}\n\n*Notify when:*\n${config.notifyOnOpen ? '✅' : '❌'} PR opened\n${config.notifyOnReady ? '✅' : '❌'} PR ready for review\n${config.notifyOnChangesRequested ? '✅' : '❌'} Changes requested\n${config.notifyOnApproved ? '✅' : '❌'} PR approved\n${config.notifyOnMerged ? '✅' : '❌'} PR merged`,
+        text: `*Required Approvals:* ${config.requiredApprovals}\n\n*Notify when:*\n${config.notifyOnOpen ? '✅' : '❌'} PR opened\n${config.notifyOnReady ? '✅' : '❌'} PR ready for review\n${config.notifyOnChangesRequested ? '✅' : '❌'} Changes requested\n${config.notifyOnApproved ? '✅' : '❌'} PR approved\n${config.notifyOnMerged ? '✅' : '❌'} PR merged\n\n*Other Settings:*\n${config.excludeBotComments ? '✅' : '❌'} Exclude bot comments`,
       },
     });
 
@@ -251,7 +317,7 @@ export function buildAddMembersModal(channelId: string): View {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: '*Add GitHub users and their Slack accounts*\nFormat: `github-username:@slack-user` (one per line)\nOr just `github-username` if no Slack mapping needed',
+          text: '*Add GitHub users with optional Slack @mentions*\n\n📝 Format: `github-username:SLACK_USER_ID` (one per line)\n\n💡 To get Slack User ID:\n1. Right-click on user in Slack\n2. View profile → Click ⋯ (More)\n3. Copy member ID (starts with U)',
         },
       },
       {
@@ -263,16 +329,16 @@ export function buildAddMembersModal(channelId: string): View {
           multiline: true,
           placeholder: {
             type: 'plain_text',
-            text: 'github-username:@slack-user\nor\ngithub-username',
+            text: 'github-username:U07V123ABCD',
           },
         },
         label: {
           type: 'plain_text',
-          text: 'Team Members',
+          text: 'Team Members (GitHub usernames)',
         },
         hint: {
           type: 'plain_text',
-          text: 'Examples:\ng-ribeiro-swordhealth:@guilherme\njorge-costa-sword:@jorge\nemiliomarin',
+          text: 'Format: github-username or github-username:SLACK_USER_ID\n\nExamples:\n• john-doe\n• jane-smith:U07V123ABCD\n\nTo find Slack User ID: Right-click user in Slack → View profile → ⋯ → Copy member ID',
         },
       },
     ],
@@ -537,6 +603,22 @@ export function buildSettingsModal(channelId: string, config: TeamConfig): View 
           type: 'checkboxes',
           action_id: 'notify_merged_check',
           initial_options: config.notifyOnMerged
+            ? [{ text: { type: 'plain_text', text: 'Enabled' }, value: 'enabled' }]
+            : [],
+          options: [{ text: { type: 'plain_text', text: 'Enabled' }, value: 'enabled' }],
+        },
+      },
+      {
+        type: 'section',
+        block_id: 'exclude_bot_comments',
+        text: {
+          type: 'mrkdwn',
+          text: '*Exclude bot comments from threads*',
+        },
+        accessory: {
+          type: 'checkboxes',
+          action_id: 'exclude_bot_comments_check',
+          initial_options: config.excludeBotComments
             ? [{ text: { type: 'plain_text', text: 'Enabled' }, value: 'enabled' }]
             : [],
           options: [{ text: { type: 'plain_text', text: 'Enabled' }, value: 'enabled' }],

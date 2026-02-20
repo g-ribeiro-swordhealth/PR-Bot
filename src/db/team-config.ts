@@ -13,6 +13,7 @@ export function upsertTeamConfig(config: Partial<TeamConfigRow> & { channel_id: 
     notify_on_changes_requested: 1,
     notify_on_approved: 1,
     notify_on_merged: 0,
+    exclude_bot_comments: 1,
   };
 
   const merged = { ...defaults, ...config, updated_at: new Date().toISOString() };
@@ -21,11 +22,11 @@ export function upsertTeamConfig(config: Partial<TeamConfigRow> & { channel_id: 
     INSERT INTO team_configs (
       channel_id, channel_name, required_approvals,
       notify_on_open, notify_on_ready, notify_on_changes_requested,
-      notify_on_approved, notify_on_merged, updated_at
+      notify_on_approved, notify_on_merged, exclude_bot_comments, updated_at
     ) VALUES (
       @channel_id, @channel_name, @required_approvals,
       @notify_on_open, @notify_on_ready, @notify_on_changes_requested,
-      @notify_on_approved, @notify_on_merged, @updated_at
+      @notify_on_approved, @notify_on_merged, @exclude_bot_comments, @updated_at
     )
     ON CONFLICT(channel_id) DO UPDATE SET
       channel_name = @channel_name,
@@ -35,6 +36,7 @@ export function upsertTeamConfig(config: Partial<TeamConfigRow> & { channel_id: 
       notify_on_changes_requested = @notify_on_changes_requested,
       notify_on_approved = @notify_on_approved,
       notify_on_merged = @notify_on_merged,
+      exclude_bot_comments = @exclude_bot_comments,
       updated_at = @updated_at
   `).run(merged);
 }
@@ -136,6 +138,7 @@ export function getFullTeamConfig(channelId: string): TeamConfig | null {
     notifyOnChangesRequested: Boolean(config.notify_on_changes_requested),
     notifyOnApproved: Boolean(config.notify_on_approved),
     notifyOnMerged: Boolean(config.notify_on_merged),
+    excludeBotComments: Boolean(config.exclude_bot_comments),
     members: members.map(m => ({
       github: m.github_username,
       slack: m.slack_user_id ? `<@${m.slack_user_id}>` : undefined,
@@ -212,4 +215,25 @@ export function findTeamsTrackingUserAndRepo(githubUsername: string, repoName: s
   return userTeams.filter(channelId =>
     repoTeams.includes(channelId) || allRepoTeamIds.includes(channelId)
   );
+}
+
+// --- User App Home State Management ---
+
+export function setUserSelectedChannel(userId: string, channelId: string): void {
+  const db = getDatabase();
+  db.prepare(`
+    INSERT INTO user_app_home_state (user_id, selected_channel_id, last_updated)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      selected_channel_id = ?,
+      last_updated = datetime('now')
+  `).run(userId, channelId, channelId);
+}
+
+export function getUserSelectedChannel(userId: string): string | null {
+  const db = getDatabase();
+  const row = db.prepare(`
+    SELECT selected_channel_id FROM user_app_home_state WHERE user_id = ?
+  `).get(userId) as { selected_channel_id: string | null } | undefined;
+  return row?.selected_channel_id || null;
 }

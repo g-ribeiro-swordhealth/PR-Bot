@@ -94,6 +94,7 @@ export interface TeamConfigRow {
   notify_on_changes_requested: number;
   notify_on_approved: number;
   notify_on_merged: number;
+  exclude_bot_comments: number; // SQLite boolean (0 or 1)
   created_at: string;
   updated_at: string;
 }
@@ -123,6 +124,7 @@ export interface TeamConfig {
   notifyOnChangesRequested: boolean;
   notifyOnApproved: boolean;
   notifyOnMerged: boolean;
+  excludeBotComments: boolean;
   members: Array<{ github: string; slack?: string }>; // GitHub usernames with optional Slack mapping
   repos: string[]; // Repo names (e.g., "api-member")
 }

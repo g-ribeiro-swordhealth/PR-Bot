@@ -41,6 +41,20 @@ export async function getReviews(owner: string, repo: string, pullNumber: number
   }
 }
 
+export async function getReviewComments(owner: string, repo: string, pullNumber: number): Promise<any[]> {
+  const octokit = getOctokit();
+  try {
+    const { data: comments } = await withRetry(
+      () => octokit.pulls.listReviewComments({ owner, repo, pull_number: pullNumber }),
+      { label: `getReviewComments(${owner}/${repo}#${pullNumber})` }
+    );
+    return comments;
+  } catch (error: any) {
+    logger.error(`Error fetching review comments for PR #${pullNumber}`, { error: error.message });
+    return [];
+  }
+}
+
 export function countApprovals(reviews: any[]): number {
   const latestReviews: Record<string, any> = {};
 

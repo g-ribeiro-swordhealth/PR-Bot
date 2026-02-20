@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc && node dist/index.js"
+    "dev": "tsc && node dist/index.js",
+    "demo": "tsc && node dist/demo.js",
+    "test-manual": "tsc && node dist/manual-test.js"
   },
   "keywords": [
     "github",

@@ -27,7 +27,7 @@ export function loadConfig(): AppConfig {
 
     slackBotToken: requireEnv('SLACK_BOT_TOKEN'),
     slackSigningSecret: requireEnv('SLACK_SIGNING_SECRET'),
-    slackChannel: requireEnv('SLACK_CHANNEL'),
+    slackChannel: process.env.SLACK_CHANNEL || '', // Optional: legacy variable, channels configured via App Home
 
     userMappings: process.env.USER_MAPPINGS || '',
 

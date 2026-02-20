@@ -47,6 +47,7 @@ export function initDatabase(dbPath?: string): Database.Database {
       notify_on_changes_requested INTEGER DEFAULT 1,
       notify_on_approved INTEGER DEFAULT 1,
       notify_on_merged INTEGER DEFAULT 0,
+      exclude_bot_comments INTEGER DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -71,6 +72,13 @@ export function initDatabase(dbPath?: string): Database.Database {
       UNIQUE(channel_id, repo_name)
     );
 
+    -- User preferences for App Home (tracks which channel each user is viewing)
+    CREATE TABLE IF NOT EXISTS user_app_home_state (
+      user_id TEXT PRIMARY KEY,
+      selected_channel_id TEXT,
+      last_updated TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_pr_messages_state ON pr_messages(pr_state);
     CREATE INDEX IF NOT EXISTS idx_pr_messages_repo ON pr_messages(owner, repo);
     CREATE INDEX IF NOT EXISTS idx_team_members_channel ON team_members(channel_id);
@@ -78,8 +86,29 @@ export function initDatabase(dbPath?: string): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_team_repos_channel ON team_repos(channel_id);
   `);
 
+  // Run migrations for existing databases
+  runMigrations(db);
+
   logger.info('Database initialized', { path: resolvedPath });
   return db;
+}
+
+/**
+ * Run database migrations for schema updates
+ */
+function runMigrations(db: Database.Database): void {
+  // Migration: Add exclude_bot_comments column if it doesn't exist
+  try {
+    const tableInfo = db.prepare('PRAGMA table_info(team_configs)').all() as Array<{ name: string }>;
+    const hasExcludeBotComments = tableInfo.some(col => col.name === 'exclude_bot_comments');
+
+    if (!hasExcludeBotComments) {
+      db.exec('ALTER TABLE team_configs ADD COLUMN exclude_bot_comments INTEGER DEFAULT 1');
+      logger.info('Migration applied: Added exclude_bot_comments column');
+    }
+  } catch (error: any) {
+    logger.error('Migration error', { error: error.message });
+  }
 }
 
 export function getDatabase(): Database.Database {
