@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "strict": false,
+    "module": "commonjs",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/*"],
+      "@config": ["config/index.js"],
+      "@service/*": ["src/service/*"],
+      "@clients/*": ["src/clients/*"],
+      "@database/*": ["src/database/*"],
+      "@helper/*": ["src/helper/*"],
+      "@constants/*": ["src/constants/*"]
+    }
+  },
+  "include": ["src/**/*", "config/**/*", "entrypoint/**/*", "test/**/*"],
+  "exclude": ["node_modules"]
+}

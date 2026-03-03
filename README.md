@@ -16,6 +16,7 @@ PR Bot is a Slack application that delivers intelligent, real-time pull request 
 - **Smart Routing** - Notifications go to the right channels based on PR author and repo
 - **Customizable Notifications** - Each team chooses which PR events to receive
 - **Threaded Updates** - Reviews, comments, and approvals appear in threads
+- **Label-Gated Notifications** - Optionally hold the initial post until a specific GitHub label is applied to the PR
 - **Bot Comment Filtering** - Optionally exclude bot/automated comments (e.g. Copilot) from threads
 - **Rich Formatting** - Slack Block Kit messages with status indicators
 - **Secure** - Webhook signature verification and proper authentication
@@ -63,7 +64,15 @@ PORT=3000
 USER_MAPPINGS=github-user:U01234ABC,another-user:U56789DEF
 ```
 
-3. **Set up GitHub webhooks** pointing to `https://your-server/github/webhook`
+3. **Set up GitHub webhook** — go to your repo or org → Settings → Webhooks → Add webhook:
+   - **Payload URL:** `https://your-server/github/webhook`
+   - **Content type:** `application/json`
+   - **Secret:** same value as `GITHUB_WEBHOOK_SECRET` in your `.env`
+   - **Events:** select **"Let me select individual events"** and enable:
+     - `Pull requests` — covers all PR actions including `opened`, `labeled`, `closed`, `merged`, etc.
+     - `Pull request reviews` — for approval and changes-requested updates
+
+   > The `Pull requests` event is the only one needed for label-gated mode. GitHub fires this event for every PR action including when a label is added (`labeled`), so no separate label webhook is required.
 4. **Start the server**:
 
 ```bash
@@ -105,7 +114,8 @@ Repos:
 
 Settings:
    Required Approvals: 2
-   Notify on: Open, Ready, Changes Requested, Approved
+   Post initial message: When PR is opened
+   Notify on: Ready, Changes Requested, Approved
    Exclude bot comments: ON
 ```
 
@@ -119,7 +129,8 @@ Repos: (none — tracks all org repos)
 
 Settings:
    Required Approvals: 2
-   Notify on: Open, Changes Requested
+   Post initial message: When label "notify-channel" is applied
+   Notify on: Changes Requested
 ```
 
 ---
@@ -139,18 +150,36 @@ Per-channel settings configurable via the Slack App Home tab:
 | Team members | GitHub usernames to track (with optional Slack user ID for @mentions) |
 | Repos | Specific repos to watch (empty = all org repos) |
 | Required approvals | How many approvals before a PR is considered "ready" |
-| Notify on open | Post when a PR is opened |
+| Post initial message | **When PR is opened** (default) or **when a label is applied** (see below) |
+| Trigger Label | The exact label name that triggers the initial post (e.g. `notify-channel`) |
 | Notify on ready | Post when a PR is marked ready for review |
 | Notify on changes requested | Post when reviewer requests changes |
 | Notify on approved | Post when a PR is approved |
 | Notify on merged | Post when a PR is merged |
 | Exclude bot comments | Filter out bot/automated comments from threads (e.g. Copilot) |
 
+### Label-Gated Notifications
+
+By default PR Bot posts to the channel the moment a PR is opened. Some teams prefer to stay quiet until a PR is actually ready for external attention — for example, waiting until a developer manually applies a `notify-channel` label.
+
+**How it works:**
+
+1. In the App Home settings, select **"When a label is applied to the PR"**
+2. Enter the exact label name you want to use as the trigger (e.g. `notify-channel`)
+3. PR Bot will now **ignore the `opened` event** — no Slack message is posted when the PR is created
+4. When someone adds the configured label on GitHub, that fires a `labeled` action on the `Pull requests` webhook event — PR Bot catches this and posts the initial message
+5. All subsequent updates (reviews, approvals, merges) still work normally once the initial post exists
+
+**GitHub webhook note:** No extra webhook setup is required. GitHub's `Pull requests` event (which you already subscribe to) covers every PR action including `labeled`. The same webhook URL handles both modes.
+
+> **Note:** If a PR receives review events (approvals, changes requested) before the trigger label is applied, those events are silently ignored. The bot only starts tracking a PR after the label fires the initial post.
+
 ### Smart Notifications
 - Intelligent routing — PRs appear in channels tracking the author
 - Event filtering — choose which PR events to receive
 - Draft handling — automatically skip draft PRs
 - Update-in-place — one message per PR, always current
+- Label-gating — hold the initial post until a specific label is applied
 
 ---
 

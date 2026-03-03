@@ -1,0 +1,16 @@
+{
+  "github": {
+    "token": "",
+    "org": "",
+    "webhookSecret": "",
+    "repos": []
+  },
+  "slack": {
+    "botToken": "",
+    "signingSecret": "",
+    "channel": ""
+  },
+  "server": {
+    "port": 3000
+  }
+}
